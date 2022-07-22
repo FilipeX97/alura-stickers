@@ -1,5 +1,5 @@
 
-public class Filme {
+public class Item {
 	
 	private String id;
 	private String rank;
