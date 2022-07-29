@@ -1,5 +1,5 @@
 
-public class Item {
+public class ItemIMDB {
 	
 	private String id;
 	private String rank;

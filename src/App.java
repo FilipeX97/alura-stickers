@@ -2,16 +2,9 @@ import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.MalformedURLException;
-import java.net.URI;
 import java.net.URL;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse.BodyHandlers;
 import java.util.List;
 import java.util.Scanner;
-import java.util.stream.Collectors;
-
-import com.google.gson.Gson;
 
 public class App {
 
@@ -19,32 +12,16 @@ public class App {
 
 		boolean exit = false;
 		Scanner sc = new Scanner(System.in);
-
-		// API do IMDB fora do ar!
-//		var propertiesAluraStickers = new PropertiesAluraStickers(); 
-
-		// Fazer uma conexão http e buscar somente os dados dos 250 filmes
-		String urlFilmes = "https://api.mocki.io/v2/549a5d8b/Top250Movies";
-		String urlSeries = "https://api.mocki.io/v2/549a5d8b/Top250TVs";
-		
-
-		var clientFilmes = HttpClient.newHttpClient()
-				.send(HttpRequest.newBuilder(URI.create(urlFilmes)).GET().build(), BodyHandlers.ofString()).body();
-		var clientSeries = HttpClient.newHttpClient()
-				.send(HttpRequest.newBuilder(URI.create(urlSeries)).GET().build(), BodyHandlers.ofString()).body();
+		var properties = new PropertiesAluraStickers();
+		String urlNasa = UrlEnum.Nasa.getUrl() + "?api_key=" + properties.getChaveAPINasa();
+		String urlMarvel = UrlEnum.Marvel.getUrl() + "?limit=100&ts=1&apikey=" + properties.getChaveAPIMarvel() + "&hash="
+				+ properties.getHashAPIMarvel();
 
 		// extrair somente os dados que interessam (titulo, poster, classificação)
-		List<Item> listaDeFilmes = new Gson().fromJson(clientFilmes, Root.class).items.stream().collect(Collectors.toList());
-		List<Item> listaDeSeries = new Gson().fromJson(clientSeries, Root.class).items.stream().collect(Collectors.toList());
-
-		// Exibir e manipular os dados do jeito que queremos
-
-//		for(Filme filme : listaDeFilmes) {
-//			System.out.println(filme.getTitle());
-//			System.out.println(filme.getImage());
-//			System.out.println("Classificação: " + convertRating(filme.getImDbRating()));
-//			System.out.println();
-//		}
+		var listaDeFilmes = new ExtratorDeConteudoDoIMDB().extraiConteudos(UrlEnum.IMDBFilme.getUrl());
+		var listaDeSeries = new ExtratorDeConteudoDoIMDB().extraiConteudos(UrlEnum.IMDBSeries.getUrl());
+		var listaDaNasa = new ExtratorDeConteudoDaNasa().extraiConteudos(urlNasa);
+		var listaDaMarvel = new ExtratorDeConteudoDaMarvel().extraiConteudos(urlMarvel);
 
 		do {
 
@@ -57,7 +34,9 @@ public class App {
 			System.out.println("6 - Exibir informações de uma série");
 			System.out.println("7 - Inserir/Alterar avaliação em uma série");
 			System.out.println("8 - Gerar figurinhas das séries");
-			System.out.println("9 - Sair");
+			System.out.println("9 - Gerar figurinhas da Nasa");
+			System.out.println("10 - Gerar figurinhas da Marvel");
+			System.out.println("11 - Sair");
 			var opcao = sc.nextLine();
 
 			switch (opcao) {
@@ -71,7 +50,7 @@ public class App {
 				findAndRate(listaDeFilmes, sc);
 				break;
 			case "4":
-				geraFigurinha(listaDeFilmes);
+				geraFigurinhaIMDB(listaDeFilmes);
 				break;
 			case "5":
 				getLista(listaDeSeries);
@@ -83,9 +62,15 @@ public class App {
 				findAndRate(listaDeSeries, sc);
 				break;
 			case "8":
-				geraFigurinha(listaDeSeries);
+				geraFigurinhaIMDB(listaDeSeries);
 				break;
 			case "9":
+				geraFigurinhaNasa(listaDaNasa);
+				break;
+			case "10":
+				geraFigurinhaMarvel(listaDaMarvel);
+				break;
+			case "11":
 				exit = true;
 				break;
 			default:
@@ -93,7 +78,7 @@ public class App {
 			}
 
 		} while (!exit);
-		
+
 		sc.close();
 	}
 
@@ -111,8 +96,8 @@ public class App {
 
 	}
 
-	private static void getLista(List<Item> lista) {
-		for (Item info : lista) {
+	private static void getLista(List<ItemIMDB> lista) {
+		for (ItemIMDB info : lista) {
 			System.out.println("Código: " + info.getRank());
 			System.out.println("Título: " + info.getTitle());
 			System.out.println("Imagem: " + info.getImage());
@@ -124,10 +109,10 @@ public class App {
 		}
 	}
 
-	private static boolean encontrar(List<Item> lista, String codigo) {
+	private static boolean encontrar(List<ItemIMDB> lista, String codigo) {
 		var find = false;
 
-		for (Item info : lista) {
+		for (ItemIMDB info : lista) {
 
 			if (info.getRank().contains(codigo)) {
 				find = true;
@@ -137,101 +122,158 @@ public class App {
 
 		return find;
 	}
-	
-	private static void geraFigurinha(List<Item> lista) throws MalformedURLException, IOException {
+
+	private static void geraFigurinhaIMDB(List<ItemIMDB> lista) throws MalformedURLException, IOException {
 
 		var propertiesAluraStickers = new PropertiesAluraStickers();
 		System.out.println("Gerando imagens...");
-		
+
 		var geradora = new GeradoraDeFigurinhas();
-		
-		for (Item info : lista) {
-			
+
+		for (ItemIMDB info : lista) {
+
 			String urlImagem = info.getImage();
-			String titulo = info.getTitle();
-			
+			String titulo = info.getTitle().replace(".", "");
+
 			InputStream inputStream = new URL(urlImagem).openStream();
-			
+
 			String frase = escolheFrase(info.getImDbRating());
-			
-			geradora.cria(
-					inputStream, 
-					propertiesAluraStickers.getSaidaFiles().concat(File.separator).concat(titulo).concat(".png"), 
+
+			geradora.cria(inputStream,
+					propertiesAluraStickers.getSaidaFiles().concat(File.separator).concat(titulo).concat(".png"),
 					frase);
-			
+
 			System.out.println("Titulo: " + info.getTitle());
 			System.out.println();
 		}
-		
+
 		System.out.println("Imagens geradas com sucesso!");
-		
+
 	}
-	
+
+	private static void geraFigurinhaNasa(List<ItemNasa> lista)
+			throws MalformedURLException, IOException {
+
+		var propertiesAluraStickers = new PropertiesAluraStickers();
+		System.out.println("Gerando imagens...");
+
+		var geradora = new GeradoraDeFigurinhas();
+
+		for (ItemNasa info : lista) {
+
+			String urlImagem = info.getUrl();
+			String titulo = info.getTitle().replace(".", "");
+
+			InputStream inputStream = new URL(urlImagem).openStream();
+
+			geradora.cria(inputStream,
+					propertiesAluraStickers.getSaidaFiles().concat(File.separator).concat(titulo).concat(".png"),
+					titulo);
+
+			System.out.println("Titulo: " + titulo);
+			System.out.println();
+		}
+
+		System.out.println("Imagens geradas com sucesso!");
+
+	}
+
+	private static void geraFigurinhaMarvel(List<ResultadoMarvel> lista)
+			throws MalformedURLException, IOException, InterruptedException {
+
+		var propertiesAluraStickers = new PropertiesAluraStickers();
+		System.out.println("Gerando imagens...");
+
+		var geradora = new GeradoraDeFigurinhas();
+
+		for (ResultadoMarvel info : lista) {
+
+			String titulo = info.name.replace(".", "");
+
+			String urlImagem = info.thumbnail.path + "." + info.thumbnail.extension;
+			
+			if (urlImagem.contains("image_not_available"))
+				continue;
+
+			InputStream inputStream = new URL(urlImagem).openStream();
+
+			geradora.cria(inputStream,
+					propertiesAluraStickers.getSaidaFiles().concat(File.separator).concat(titulo).concat(".png"),
+					titulo);
+
+			System.out.println("Titulo: " + titulo);
+			System.out.println();
+
+		}
+
+		System.out.println("Imagens geradas com sucesso!");
+
+	}
+
 	private static String escolheFrase(String imDbRating) {
 		double rating = Double.parseDouble(imDbRating);
-		
-		if (rating >= 8) {			
+
+		if (rating >= 8) {
 			return "TOPZERA";
-		} else if(rating >= 6) {
+		} else if (rating >= 6) {
 			return "MEDIANO";
-		} else if(rating >= 4) {
+		} else if (rating >= 4) {
 			return "RUIM";
 		} else {
 			return "RUINZÃO";
 		}
-		
+
 	}
 
-	private static void findAndRate(List<Item> lista, Scanner sc) {
+	private static void findAndRate(List<ItemIMDB> lista, Scanner sc) {
 		System.out.println("Digite o código do filme: ");
 		String codigo = sc.nextLine();
 
 		if (encontrar(lista, codigo)) {
 			System.out.println("Filme encontrado!");
 			boolean validacao = false;
-			int valorInfo = Integer.parseInt(codigo)-1;
-			
-			if(valorInfo > 0) {
+			int valorInfo = Integer.parseInt(codigo) - 1;
+
+			if (valorInfo > 0) {
 
 				do {
-	
+
 					System.out.println("Qual a nota para o filme? Digite o valor de 1 a 10");
 					String nota = sc.nextLine();
-					
+
 					try {
 						if (((int) (Double.parseDouble(nota)) <= 10)) {
 							validacao = true;
-							lista.get(Integer.parseInt(codigo)-1).setImDbRatingUser(nota);
+							lista.get(Integer.parseInt(codigo) - 1).setImDbRatingUser(nota);
 							System.out.println("Nota inserida com sucesso!");
 						} else {
 							System.out.println("O valor não é válido para a nota do filme!");
 						}
-	
+
 					} catch (NumberFormatException e) {
 						System.out.println("Digite um valor númerico entre 1 - 10");
 					}
 				} while (!validacao);
-				
+
 			}
-			
+
 		} else {
 			System.out.println("Filme não encontrado!");
 		}
 	}
-	
-	
-	private static void find(List<Item> lista, Scanner sc) {
+
+	private static void find(List<ItemIMDB> lista, Scanner sc) {
 		System.out.println("Digite o código do filme: ");
 		String codigo = sc.nextLine();
-		
+
 		if (encontrar(lista, codigo)) {
 			System.out.println("Filme encontrado!");
-			int valorInfo = Integer.parseInt(codigo)-1;
-			
-			if(valorInfo > 0) {
-			
+			int valorInfo = Integer.parseInt(codigo) - 1;
+
+			if (valorInfo > 0) {
+
 				var info = lista.get(valorInfo);
-			
+
 				System.out.println("Código: " + info.getRank());
 				System.out.println("Título: " + info.getTitle());
 				System.out.println("Imagem: " + info.getImage());
@@ -241,7 +283,7 @@ public class App {
 				System.out.println("Avaliação Pessoal: " + avaliacaoPessoal);
 				System.out.println();
 			}
-			
+
 		} else {
 			System.out.println("Filme não encontrado!");
 		}

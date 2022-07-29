@@ -29,10 +29,22 @@ public class GeradoraDeFigurinhas {
 		graphics.drawImage(imagemOriginal, 0, 0, null);
 
 		// Configurar a fonte
-		var font = new Font("Impact", Font.BOLD, 64);
+		Font font;
+		int novaAlturaFonte = 0;
+		if (largura <= 250) {			
+			font = new Font("Impact", Font.BOLD, 18);			
+			novaAlturaFonte = novaAltura - 175;
+		}
+		else if (largura <= 500) {
+			font = new Font("Impact", Font.BOLD, 28);			
+			novaAlturaFonte = novaAltura - 150;
+		} else {
+			font = new Font("Impact", Font.BOLD, 64);
+			novaAlturaFonte = novaAltura - 100;
+		}
 		graphics.setColor(Color.BLACK);
 		graphics.setFont(font);
-		graphics.translate(setTextCenter(graphics, frase, novaImagem), novaAltura - 100);
+		graphics.translate(setTextCenter(graphics, frase, novaImagem), novaAlturaFonte);
 		graphics.setStroke(new BasicStroke(4.0f));
 		GlyphVector glyphVector = font.createGlyphVector(graphics.getFontRenderContext(), frase);
 		Shape textShape = glyphVector.getOutline();

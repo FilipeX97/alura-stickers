@@ -2,7 +2,7 @@ import java.util.ArrayList;
 
 public class Root {
 	
-	public ArrayList<Item> items;
+	public ArrayList<ItemIMDB> items;
     public String errorMessage;
 
 }
